@@ -1,0 +1,23 @@
+modules:
+  jira:adminPage:
+    - key: admin-page-example-hello-world-admin-page
+      resource: main-admin-page
+      title: Admin page example
+      render: native
+      resolver: 
+        function: admin-page-function
+  function:
+    - key: admin-page-function
+      handler: index.handler
+resources:
+  - key: main-admin-page
+    path: src/frontend/index.jsx
+app:
+  runtime:
+    name: nodejs20.x
+  id: ari:cloud:ecosystem::app/2b605eaf-3b3a-4093-86be-aaf1e929e5cd
+permissions:
+  scopes:
+    - read:jira-work
+    - read:project:jira
+    - read:project-category:jira
