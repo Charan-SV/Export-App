@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Text, Button, DynamicTable } from '@forge/react';
+import ForgeReconciler, { Text, Strong, Button, DynamicTable } from '@forge/react';
 import { invoke } from '@forge/bridge';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
@@ -56,7 +56,6 @@ const App = () => {
       { key: 'key', content: 'Key' },
       { key: 'name', content: 'Name' },
       { key: 'lead', content: 'Lead' },
-      { key: 'accountId', content: 'Account ID' },
       { key: 'totalIssueCount', content: 'Total Issue Count' },
       { key: 'lastIssueUpdateTime', content: 'Last Issue Update Time' }
     ]
@@ -69,7 +68,6 @@ const App = () => {
       { key: 'key', content: project.key },
       { key: 'name', content: project.name },
       { key: 'lead', content: project.lead },
-      { key: 'accountId', content: project.accountId },
       { key: 'totalIssueCount', content: project.totalIssueCount },
       { key: 'lastIssueUpdateTime', content: project.lastIssueUpdateTime }
     ]
@@ -77,8 +75,8 @@ const App = () => {
 
   return (
     <>
-      <Text>Export your project list to a CSV file.</Text>
-      <Button appearance="primary" text="Export Project List to CSV" onClick={handleExportClick}>Export Projects</Button>
+      <Text><Strong>Projects</Strong></Text>
+      <Button appearance="primary" text="Export Project List to CSV" onClick={handleExportClick} style={{ float: 'right', marginBottom: '10px' }}>Export Projects</Button>
       {loading && <Text>Loading...</Text>}
       {showWarning && <Text>No projects found.</Text>}
       <DynamicTable head={tableHead} rows={tableRows} />
