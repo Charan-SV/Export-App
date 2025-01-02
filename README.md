@@ -1,4 +1,4 @@
-# Forge Hello World
+# Forge Export App
 
 This project contains a Forge app written in Javascript that displays `Hello World!` in a Jira admin page. 
 
