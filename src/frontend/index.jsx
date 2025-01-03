@@ -1,9 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Text, Strong, Button, DynamicTable } from '@forge/react';
+import ForgeReconciler, { Heading, Button, DynamicTable, Tooltip, Box, xcss, Text } from '@forge/react';
 import { invoke } from '@forge/bridge';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
 import { format } from 'date-fns';
+
+const headerStyle = xcss({
+  marginBottom: 'space.300',
+  textAlign: 'center',
+  color: 'color.text.accent.blue',
+});
+
+const buttonContainerStyle = xcss({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  marginBottom: 'space.300',
+});
+
+const tableContainerStyle = xcss({
+  marginTop: 'space.300',
+});
 
 const App = () => {
   const [data, setData] = useState(null);
@@ -56,6 +72,7 @@ const App = () => {
       { key: 'key', content: 'Key' },
       { key: 'name', content: 'Name' },
       { key: 'lead', content: 'Lead' },
+      { key: 'accountId', content: 'Account ID' },
       { key: 'totalIssueCount', content: 'Total Issue Count' },
       { key: 'lastIssueUpdateTime', content: 'Last Issue Update Time' }
     ]
@@ -68,6 +85,7 @@ const App = () => {
       { key: 'key', content: project.key },
       { key: 'name', content: project.name },
       { key: 'lead', content: project.lead },
+      { key: 'accountId', content: project.accountId },
       { key: 'totalIssueCount', content: project.totalIssueCount },
       { key: 'lastIssueUpdateTime', content: project.lastIssueUpdateTime }
     ]
@@ -75,11 +93,21 @@ const App = () => {
 
   return (
     <>
-      <Text><Strong>Projects</Strong></Text>
-      <Button appearance="primary" text="Export Project List to CSV" onClick={handleExportClick} style={{ float: 'right', marginBottom: '10px' }}>Export Projects</Button>
-      {loading && <Text>Loading...</Text>}
-      {showWarning && <Text>No projects found.</Text>}
-      <DynamicTable head={tableHead} rows={tableRows} />
+      <Box xcss={headerStyle}>
+      <Heading as="h3" level="h600" xcss={headerStyle} appearance="primary">Projects</Heading>
+      </Box>
+      <Text> </Text>
+      <Text> </Text>
+     <Text> </Text>
+      <Text> </Text>
+      <Box xcss={buttonContainerStyle}>
+        <Tooltip content="Export project list to CSV" position="right">
+          <Button appearance="primary" text="Export Project List to CSV" onClick={handleExportClick}>Export Projects</Button>
+        </Tooltip>
+      </Box>
+      <Box xcss={tableContainerStyle}>
+        <DynamicTable head={tableHead} rows={tableRows} isLoading={loading} emptyView="No data to display" />
+      </Box>
     </>
   );
 };
