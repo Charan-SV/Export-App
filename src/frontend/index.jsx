@@ -24,6 +24,25 @@ const tableContainerStyle = xcss({
 
 const App = () => {
   // ...existing code...
+  const [issueTypeSchemes, setIssueTypeSchemes] = useState([]);
+  const [issueTypeLoading, setIssueTypeLoading] = useState(false);
+
+  const handleExportIssueTypeSchemes = () => {
+    const exportData = issueTypeSchemes.map(scheme => {
+      const project = tableData.find(p => p.id === scheme.projectId);
+      return {
+        projectId: scheme.projectId,
+        projectKey: project ? project.key : '',
+        projectName: project ? project.name : '',
+        name: scheme.name || '',
+        schemeId: scheme.id || '',
+        error: scheme.error || ''
+      };
+    });
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, 'issue_type_schemes.csv');
+  };
   const handleExportPermissionSchemes = () => {
     // Merge project key and name into permissionSchemes
     const exportData = permissionSchemes.map(scheme => {
@@ -80,6 +99,18 @@ const App = () => {
           setPermissionSchemes(schemes);
           setPermLoading(false);
 
+          // Fetch issue type schemes for each project
+          setIssueTypeLoading(true);
+          const issueSchemes = await Promise.all(projectData.map(async project => {
+            try {
+              const scheme = await invoke('getProjectIssueTypeScheme', { projectId: project.id });
+              return { projectId: project.id, ...scheme };
+            } catch (error) {
+              return { projectId: project.id, error: 'Failed to fetch issue type scheme.' };
+            }
+          }));
+          setIssueTypeSchemes(issueSchemes);
+          setIssueTypeLoading(false);
         }
       } catch (error) {
         console.error('Error fetching projects:', error);
@@ -159,7 +190,6 @@ const App = () => {
               { key: 'projectKey', content: 'Project Key' },
               { key: 'projectName', content: 'Project Name' },
               { key: 'name', content: 'Name' },
-              { key: 'description', content: 'Description' },
               { key: 'schemeId', content: 'Scheme ID' }
             ]
           }}
@@ -179,6 +209,45 @@ const App = () => {
           })}
           isLoading={permLoading}
           emptyView="No permission schemes to display"
+        />
+      )}
+
+      {/* Issue Type Schemes Section as DynamicTable */}
+      <Box xcss={headerStyle}>
+        <Heading as="h4" level="h500" appearance="primary">Project Issue Type Schemes</Heading>
+      </Box>
+      <Box xcss={buttonContainerStyle}>
+        <Tooltip content="Export issue type schemes to CSV" position="right">
+          <Button appearance="primary" text="Export Issue Type Schemes to CSV" onClick={handleExportIssueTypeSchemes}>Export Issue Type Schemes</Button>
+        </Tooltip>
+      </Box>
+      {issueTypeLoading && <Text>Loading issue type schemes...</Text>}
+      {!issueTypeLoading && issueTypeSchemes.length > 0 && (
+        <DynamicTable
+          head={{
+            cells: [
+              { key: 'projectId', content: 'Project ID' },
+              { key: 'projectKey', content: 'Project Key' },
+              { key: 'projectName', content: 'Project Name' },
+              { key: 'name', content: 'Name' },
+              { key: 'schemeId', content: 'Scheme ID' }
+            ]
+          }}
+          rows={issueTypeSchemes.map(scheme => {
+            const project = tableData.find(p => p.id === scheme.projectId);
+            return {
+              key: scheme.projectId,
+              cells: [
+                { key: 'projectId', content: scheme.projectId },
+                { key: 'projectKey', content: project ? project.key : '' },
+                { key: 'projectName', content: project ? project.name : '' },
+                { key: 'name', content: scheme.error ? <Text color="red">{scheme.error}</Text> : scheme.name },
+                { key: 'schemeId', content: scheme.error ? '' : scheme.id }
+              ]
+            };
+          })}
+          isLoading={issueTypeLoading}
+          emptyView="No issue type schemes to display"
         />
       )}
     </>

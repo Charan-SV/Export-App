@@ -46,11 +46,26 @@ resolver.define('getProjectIssueTypeScheme', async (req) => {
   }
   try {
     const response = await api.asApp().requestJira(route`/rest/api/3/issuetypescheme/project?projectId=${projectId}`);
-    const issueTypeScheme = await response.json();
-    return issueTypeScheme;
+    const data = await response.json();
+    // Find the scheme for this project
+    let schemeObj = { projectId, name: '', description: '', id: '' };
+    if (data.values && Array.isArray(data.values)) {
+      for (const entry of data.values) {
+        if (entry.projectIds && entry.projectIds.includes(projectId)) {
+          schemeObj = {
+            projectId,
+            name: entry.issueTypeScheme?.name || '',
+            description: '', // No description in response
+            id: entry.issueTypeScheme?.id || ''
+          };
+          break;
+        }
+      }
+    }
+    return schemeObj;
   } catch (error) {
     console.error(`Error fetching issue type scheme for project ${projectId}:`, error);
-    throw error;
+    return { projectId, error: 'Failed to fetch issue type scheme.' };
   }
 });
 // Fetch permission scheme for a given project ID or key
