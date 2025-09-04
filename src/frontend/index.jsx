@@ -27,6 +27,29 @@ const App = () => {
   const [issueTypeSchemes, setIssueTypeSchemes] = useState([]);
   const [issueTypeLoading, setIssueTypeLoading] = useState(false);
 
+    // Workflow scheme state
+    const [workflowSchemes, setWorkflowSchemes] = useState([]);
+    const [workflowLoading, setWorkflowLoading] = useState(false);
+
+    // Export workflow schemes to CSV
+    const handleExportWorkflowSchemes = () => {
+      const exportData = workflowSchemes.map(scheme => {
+        const project = tableData.find(p => p.id === scheme.projectId);
+        return {
+          projectId: scheme.projectId,
+          projectKey: project ? project.key : '',
+          projectName: project ? project.name : '',
+          name: scheme.name || '',
+          description: scheme.description || '',
+          schemeId: scheme.id || '',
+          error: scheme.error || ''
+        };
+      });
+      const csv = Papa.unparse(exportData);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      saveAs(blob, 'workflow_schemes.csv');
+    };
+
   const handleExportIssueTypeSchemes = () => {
     const exportData = issueTypeSchemes.map(scheme => {
       const project = tableData.find(p => p.id === scheme.projectId);
@@ -111,6 +134,19 @@ const App = () => {
           }));
           setIssueTypeSchemes(issueSchemes);
           setIssueTypeLoading(false);
+
+            // Fetch workflow schemes for each project
+            setWorkflowLoading(true);
+            const workflowSchemesData = await Promise.all(projectData.map(async project => {
+              try {
+                const scheme = await invoke('getProjectWorkflowScheme', { projectId: project.id });
+                return { projectId: project.id, ...scheme };
+              } catch (error) {
+                return { projectId: project.id, error: 'Failed to fetch workflow scheme.' };
+              }
+            }));
+            setWorkflowSchemes(workflowSchemesData);
+            setWorkflowLoading(false);
         }
       } catch (error) {
         console.error('Error fetching projects:', error);
@@ -250,6 +286,47 @@ const App = () => {
           emptyView="No issue type schemes to display"
         />
       )}
+
+        {/* Workflow Schemes Section as DynamicTable */}
+        <Box xcss={headerStyle}>
+          <Heading as="h4" level="h500" appearance="primary">Project Workflow Schemes</Heading>
+        </Box>
+        <Box xcss={buttonContainerStyle}>
+          <Tooltip content="Export workflow schemes to CSV" position="right">
+            <Button appearance="primary" text="Export Workflow Schemes to CSV" onClick={handleExportWorkflowSchemes}>Export Workflow Schemes</Button>
+          </Tooltip>
+        </Box>
+        {workflowLoading && <Text>Loading workflow schemes...</Text>}
+        {!workflowLoading && workflowSchemes.length > 0 && (
+          <DynamicTable
+            head={{
+              cells: [
+                { key: 'projectId', content: 'Project ID' },
+                { key: 'projectKey', content: 'Project Key' },
+                { key: 'projectName', content: 'Project Name' },
+                { key: 'name', content: 'Name' },
+                { key: 'description', content: 'Description' },
+                { key: 'schemeId', content: 'Scheme ID' }
+              ]
+            }}
+            rows={workflowSchemes.map(scheme => {
+              const project = tableData.find(p => p.id === scheme.projectId);
+              return {
+                key: scheme.projectId,
+                cells: [
+                  { key: 'projectId', content: scheme.projectId },
+                  { key: 'projectKey', content: project ? project.key : '' },
+                  { key: 'projectName', content: project ? project.name : '' },
+                  { key: 'name', content: scheme.error ? <Text color="red">{scheme.error}</Text> : scheme.name },
+                  { key: 'description', content: scheme.error ? '' : scheme.description },
+                  { key: 'schemeId', content: scheme.error ? '' : scheme.id }
+                ]
+              };
+            })}
+            isLoading={workflowLoading}
+            emptyView="No workflow schemes to display"
+          />
+        )}
     </>
   );
 };

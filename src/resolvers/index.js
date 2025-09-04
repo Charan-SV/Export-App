@@ -1,3 +1,4 @@
+
 import Resolver from '@forge/resolver';
 import api, { route } from '@forge/api';
 
@@ -66,6 +67,36 @@ resolver.define('getProjectIssueTypeScheme', async (req) => {
   } catch (error) {
     console.error(`Error fetching issue type scheme for project ${projectId}:`, error);
     return { projectId, error: 'Failed to fetch issue type scheme.' };
+  }
+});
+// Fetch workflow scheme for a given project ID
+resolver.define('getProjectWorkflowScheme', async (req) => {
+  const { projectId } = req.payload;
+  if (!projectId) {
+    throw new Error('projectId is required');
+  }
+  try {
+    const response = await api.asApp().requestJira(route`/rest/api/3/workflowscheme/project?projectId=${projectId}`);
+    const data = await response.json();
+    // Find the scheme for this project
+    let schemeObj = { projectId, name: '', description: '', id: '' };
+    if (data.values && Array.isArray(data.values)) {
+      for (const entry of data.values) {
+        if (entry.projectIds && entry.projectIds.includes(projectId)) {
+          schemeObj = {
+            projectId,
+            name: entry.workflowScheme?.name || '',
+            description: entry.workflowScheme?.description || '',
+            id: entry.workflowScheme?.id || ''
+          };
+          break;
+        }
+      }
+    }
+    return schemeObj;
+  } catch (error) {
+    console.error(`Error fetching workflow scheme for project ${projectId}:`, error);
+    return { projectId, error: 'Failed to fetch workflow scheme.' };
   }
 });
 // Fetch permission scheme for a given project ID or key
