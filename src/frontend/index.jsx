@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, { Heading, Button, DynamicTable, Tooltip, Box, xcss, Text } from '@forge/react';
-// Removed UI Kit Table import
 import { invoke } from '@forge/bridge';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
@@ -23,73 +22,20 @@ const tableContainerStyle = xcss({
 });
 
 const App = () => {
-  // ...existing code...
-  const [issueTypeSchemes, setIssueTypeSchemes] = useState([]);
-  const [issueTypeLoading, setIssueTypeLoading] = useState(false);
-
-    // Workflow scheme state
-    const [workflowSchemes, setWorkflowSchemes] = useState([]);
-    const [workflowLoading, setWorkflowLoading] = useState(false);
-
-    // Export workflow schemes to CSV
-    const handleExportWorkflowSchemes = () => {
-      const exportData = workflowSchemes.map(scheme => {
-        const project = tableData.find(p => p.id === scheme.projectId);
-        return {
-          projectId: scheme.projectId,
-          projectKey: project ? project.key : '',
-          projectName: project ? project.name : '',
-          name: scheme.name || '',
-          description: scheme.description || '',
-          schemeId: scheme.id || '',
-          error: scheme.error || ''
-        };
-      });
-      const csv = Papa.unparse(exportData);
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      saveAs(blob, 'workflow_schemes.csv');
-    };
-
-  const handleExportIssueTypeSchemes = () => {
-    const exportData = issueTypeSchemes.map(scheme => {
-      const project = tableData.find(p => p.id === scheme.projectId);
-      return {
-        projectId: scheme.projectId,
-        projectKey: project ? project.key : '',
-        projectName: project ? project.name : '',
-        name: scheme.name || '',
-        schemeId: scheme.id || '',
-        error: scheme.error || ''
-      };
-    });
-    const csv = Papa.unparse(exportData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    saveAs(blob, 'issue_type_schemes.csv');
-  };
-  const handleExportPermissionSchemes = () => {
-    // Merge project key and name into permissionSchemes
-    const exportData = permissionSchemes.map(scheme => {
-      const project = tableData.find(p => p.id === scheme.projectId);
-      return {
-        projectId: scheme.projectId,
-        projectKey: project ? project.key : '',
-        projectName: project ? project.name : '',
-        name: scheme.name,
-        description: scheme.description,
-        schemeId: scheme.id,
-        error: scheme.error || ''
-      };
-    });
-    const csv = Papa.unparse(exportData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    saveAs(blob, 'permission_schemes.csv');
-  };
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showWarning, setShowWarning] = useState(false);
   const [tableData, setTableData] = useState([]);
   const [permissionSchemes, setPermissionSchemes] = useState([]);
   const [permLoading, setPermLoading] = useState(false);
+  const [issueTypeSchemes, setIssueTypeSchemes] = useState([]);
+  const [issueTypeLoading, setIssueTypeLoading] = useState(false);
+  const [workflowSchemes, setWorkflowSchemes] = useState([]);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+
+  // Workflows for each workflow scheme (map schemeId to workflow names)
+  const [schemeWorkflows, setSchemeWorkflows] = useState({});
+  const [schemeWorkflowsLoading, setSchemeWorkflowsLoading] = useState(false);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -109,6 +55,7 @@ const App = () => {
           setShowWarning(true);
         } else {
           setTableData(projectData);
+
           // Fetch permission schemes for each project
           setPermLoading(true);
           const schemes = await Promise.all(projectData.map(async project => {
@@ -135,18 +82,36 @@ const App = () => {
           setIssueTypeSchemes(issueSchemes);
           setIssueTypeLoading(false);
 
-            // Fetch workflow schemes for each project
-            setWorkflowLoading(true);
-            const workflowSchemesData = await Promise.all(projectData.map(async project => {
+          // Fetch workflow schemes for each project
+          setWorkflowLoading(true);
+          const workflowSchemesData = await Promise.all(projectData.map(async project => {
+            try {
+              const scheme = await invoke('getProjectWorkflowScheme', { projectId: project.id });
+              return { projectId: project.id, ...scheme };
+            } catch (error) {
+              return { projectId: project.id, error: 'Failed to fetch workflow scheme.' };
+            }
+          }));
+          setWorkflowSchemes(workflowSchemesData);
+          setWorkflowLoading(false);
+
+          // Fetch workflows for each workflow scheme and map to schemeId
+          setSchemeWorkflowsLoading(true);
+          const workflowsMap = {};
+          await Promise.all(workflowSchemesData.map(async scheme => {
+            if (scheme.id && !scheme.error) {
               try {
-                const scheme = await invoke('getProjectWorkflowScheme', { projectId: project.id });
-                return { projectId: project.id, ...scheme };
+                const wfData = await invoke('getWorkflowsForScheme', { workflowschemaid: scheme.id });
+                // API returns array of objects with 'workflow' string property
+                const workflowArr = Array.isArray(wfData) ? wfData : (wfData.values || []);
+                workflowsMap[scheme.id] = workflowArr.map(wf => wf.workflow || '').filter(Boolean);
               } catch (error) {
-                return { projectId: project.id, error: 'Failed to fetch workflow scheme.' };
+                workflowsMap[scheme.id] = [];
               }
-            }));
-            setWorkflowSchemes(workflowSchemesData);
-            setWorkflowLoading(false);
+            }
+          }));
+          setSchemeWorkflows(workflowsMap);
+          setSchemeWorkflowsLoading(false);
         }
       } catch (error) {
         console.error('Error fetching projects:', error);
@@ -166,6 +131,59 @@ const App = () => {
     const csv = Papa.unparse(data);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     saveAs(blob, 'projects.csv');
+  };
+
+  const handleExportPermissionSchemes = () => {
+    const exportData = permissionSchemes.map(scheme => {
+      const project = tableData.find(p => p.id === scheme.projectId);
+      return {
+        projectId: scheme.projectId,
+        projectKey: project ? project.key : '',
+        projectName: project ? project.name : '',
+        name: scheme.name,
+        description: scheme.description,
+        schemeId: scheme.id,
+        error: scheme.error || ''
+      };
+    });
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, 'permission_schemes.csv');
+  };
+
+  const handleExportIssueTypeSchemes = () => {
+    const exportData = issueTypeSchemes.map(scheme => {
+      const project = tableData.find(p => p.id === scheme.projectId);
+      return {
+        projectId: scheme.projectId,
+        projectKey: project ? project.key : '',
+        projectName: project ? project.name : '',
+        name: scheme.name || '',
+        schemeId: scheme.id || '',
+        error: scheme.error || ''
+      };
+    });
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, 'issue_type_schemes.csv');
+  };
+
+  const handleExportWorkflowSchemes = () => {
+    const exportData = workflowSchemes.map(scheme => {
+      const project = tableData.find(p => p.id === scheme.projectId);
+      return {
+        projectId: scheme.projectId,
+        projectKey: project ? project.key : '',
+        projectName: project ? project.name : '',
+        name: scheme.name || '',
+        schemeId: scheme.id || '',
+        workflows: schemeWorkflows[scheme.id]?.join(', ') || '',
+        error: scheme.error || ''
+      };
+    });
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, 'workflow_schemes.csv');
   };
 
   const tableHead = {
@@ -194,7 +212,7 @@ const App = () => {
   }));
 
   return (
-    <>
+    <React.Fragment>
       <Box xcss={headerStyle}>
         <Heading as="h3" level="h600" xcss={headerStyle} appearance="primary">Projects</Heading>
       </Box>
@@ -238,7 +256,6 @@ const App = () => {
                 { key: 'projectKey', content: project ? project.key : '' },
                 { key: 'projectName', content: project ? project.name : '' },
                 { key: 'name', content: scheme.error ? <Text color="red">{scheme.error}</Text> : scheme.name },
-                { key: 'description', content: scheme.error ? '' : scheme.description },
                 { key: 'schemeId', content: scheme.error ? '' : scheme.id }
               ]
             };
@@ -287,47 +304,47 @@ const App = () => {
         />
       )}
 
-        {/* Workflow Schemes Section as DynamicTable */}
-        <Box xcss={headerStyle}>
-          <Heading as="h4" level="h500" appearance="primary">Project Workflow Schemes</Heading>
-        </Box>
-        <Box xcss={buttonContainerStyle}>
-          <Tooltip content="Export workflow schemes to CSV" position="right">
-            <Button appearance="primary" text="Export Workflow Schemes to CSV" onClick={handleExportWorkflowSchemes}>Export Workflow Schemes</Button>
-          </Tooltip>
-        </Box>
-        {workflowLoading && <Text>Loading workflow schemes...</Text>}
-        {!workflowLoading && workflowSchemes.length > 0 && (
-          <DynamicTable
-            head={{
+      {/* Workflow Schemes Section as DynamicTable */}
+      <Box xcss={headerStyle}>
+        <Heading as="h4" level="h500" appearance="primary">Project Workflow Schemes</Heading>
+      </Box>
+      <Box xcss={buttonContainerStyle}>
+        <Tooltip content="Export workflow schemes to CSV" position="right">
+          <Button appearance="primary" text="Export Workflow Schemes to CSV" onClick={handleExportWorkflowSchemes}>Export Workflow Schemes</Button>
+        </Tooltip>
+      </Box>
+      {(workflowLoading || schemeWorkflowsLoading) && <Text>Loading workflow schemes...</Text>}
+      {!workflowLoading && !schemeWorkflowsLoading && workflowSchemes.length > 0 && (
+        <DynamicTable
+          head={{
+            cells: [
+              { key: 'projectId', content: 'Project ID' },
+              { key: 'projectKey', content: 'Project Key' },
+              { key: 'projectName', content: 'Project Name' },
+              { key: 'name', content: 'Name' },
+              { key: 'schemeId', content: 'Scheme ID' },
+              { key: 'workflows', content: 'Workflows' }
+            ]
+          }}
+          rows={workflowSchemes.map(scheme => {
+            const project = tableData.find(p => p.id === scheme.projectId);
+            return {
+              key: scheme.projectId,
               cells: [
-                { key: 'projectId', content: 'Project ID' },
-                { key: 'projectKey', content: 'Project Key' },
-                { key: 'projectName', content: 'Project Name' },
-                { key: 'name', content: 'Name' },
-                { key: 'description', content: 'Description' },
-                { key: 'schemeId', content: 'Scheme ID' }
+                { key: 'projectId', content: scheme.projectId },
+                { key: 'projectKey', content: project ? project.key : '' },
+                { key: 'projectName', content: project ? project.name : '' },
+                { key: 'name', content: scheme.error ? <Text color="red">{scheme.error}</Text> : scheme.name },
+                { key: 'schemeId', content: scheme.error ? '' : scheme.id },
+                { key: 'workflows', content: schemeWorkflows[scheme.id]?.length ? schemeWorkflows[scheme.id].join(', ') : <Text color="red">No workflows found</Text> }
               ]
-            }}
-            rows={workflowSchemes.map(scheme => {
-              const project = tableData.find(p => p.id === scheme.projectId);
-              return {
-                key: scheme.projectId,
-                cells: [
-                  { key: 'projectId', content: scheme.projectId },
-                  { key: 'projectKey', content: project ? project.key : '' },
-                  { key: 'projectName', content: project ? project.name : '' },
-                  { key: 'name', content: scheme.error ? <Text color="red">{scheme.error}</Text> : scheme.name },
-                  { key: 'description', content: scheme.error ? '' : scheme.description },
-                  { key: 'schemeId', content: scheme.error ? '' : scheme.id }
-                ]
-              };
-            })}
-            isLoading={workflowLoading}
-            emptyView="No workflow schemes to display"
-          />
-        )}
-    </>
+            };
+          })}
+          isLoading={workflowLoading || schemeWorkflowsLoading}
+          emptyView="No workflow schemes to display"
+        />
+      )}
+    </React.Fragment>
   );
 };
 

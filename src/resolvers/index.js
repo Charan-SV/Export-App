@@ -99,6 +99,21 @@ resolver.define('getProjectWorkflowScheme', async (req) => {
     return { projectId, error: 'Failed to fetch workflow scheme.' };
   }
 });
+// Fetch workflows for a workflow scheme ID
+resolver.define('getWorkflowsForScheme', async (req) => {
+  const { workflowschemaid } = req.payload;
+  if (!workflowschemaid) {
+    throw new Error('workflowschemaid is required');
+  }
+  try {
+    const response = await api.asApp().requestJira(route`/rest/api/2/workflowscheme/${workflowschemaid}/workflow`);
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error fetching workflows for scheme ${workflowschemaid}:`, error);
+    return { workflowschemaid, error: 'Failed to fetch workflows for scheme.' };
+  }
+});
 // Fetch permission scheme for a given project ID or key
 resolver.define('getProjectPermissionScheme', async (req) => {
   const { projectIdOrKey } = req.payload;
