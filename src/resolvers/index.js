@@ -11,7 +11,7 @@ resolver.define('getProjects', async (req) => {
 
   try {
     while (true) {
-      const response = await api.asUser().requestJira(route`/rest/api/3/project/search?expand=insight,lead&startAt=${startAt}&maxResults=${maxResults}`);
+      const response = await api.asApp().requestJira(route`/rest/api/3/project/search?expand=insight,lead&startAt=${startAt}&maxResults=${maxResults}`);
       const data = await response.json();
       const projectData = data.values.map(project => ({
         id: project.id,
@@ -38,3 +38,33 @@ resolver.define('getProjects', async (req) => {
 });
 
 export const handler = resolver.getDefinitions();
+// Fetch issue type scheme for a given project ID
+resolver.define('getProjectIssueTypeScheme', async (req) => {
+  const { projectId } = req.payload;
+  if (!projectId) {
+    throw new Error('projectId is required');
+  }
+  try {
+    const response = await api.asApp().requestJira(route`/rest/api/3/issuetypescheme/project?projectId=${projectId}`);
+    const issueTypeScheme = await response.json();
+    return issueTypeScheme;
+  } catch (error) {
+    console.error(`Error fetching issue type scheme for project ${projectId}:`, error);
+    throw error;
+  }
+});
+// Fetch permission scheme for a given project ID or key
+resolver.define('getProjectPermissionScheme', async (req) => {
+  const { projectIdOrKey } = req.payload;
+  if (!projectIdOrKey) {
+    throw new Error('projectIdOrKey is required');
+  }
+  try {
+    const response = await api.asApp().requestJira(route`/rest/api/3/project/${projectIdOrKey}/permissionscheme`);
+    const permissionScheme = await response.json();
+    return permissionScheme;
+  } catch (error) {
+    console.error(`Error fetching permission scheme for project ${projectIdOrKey}:`, error);
+    throw error;
+  }
+});

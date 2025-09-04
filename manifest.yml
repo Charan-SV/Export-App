@@ -21,3 +21,4 @@ permissions:
     - read:jira-work
     - read:project:jira
     - read:project-category:jira
+    - manage:jira-configuration

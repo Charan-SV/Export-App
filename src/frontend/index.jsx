@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, { Heading, Button, DynamicTable, Tooltip, Box, xcss, Text } from '@forge/react';
+// Removed UI Kit Table import
 import { invoke } from '@forge/bridge';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
@@ -22,10 +23,31 @@ const tableContainerStyle = xcss({
 });
 
 const App = () => {
+  // ...existing code...
+  const handleExportPermissionSchemes = () => {
+    // Merge project key and name into permissionSchemes
+    const exportData = permissionSchemes.map(scheme => {
+      const project = tableData.find(p => p.id === scheme.projectId);
+      return {
+        projectId: scheme.projectId,
+        projectKey: project ? project.key : '',
+        projectName: project ? project.name : '',
+        name: scheme.name,
+        description: scheme.description,
+        schemeId: scheme.id,
+        error: scheme.error || ''
+      };
+    });
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, 'permission_schemes.csv');
+  };
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showWarning, setShowWarning] = useState(false);
   const [tableData, setTableData] = useState([]);
+  const [permissionSchemes, setPermissionSchemes] = useState([]);
+  const [permLoading, setPermLoading] = useState(false);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -45,6 +67,19 @@ const App = () => {
           setShowWarning(true);
         } else {
           setTableData(projectData);
+          // Fetch permission schemes for each project
+          setPermLoading(true);
+          const schemes = await Promise.all(projectData.map(async project => {
+            try {
+              const scheme = await invoke('getProjectPermissionScheme', { projectIdOrKey: project.id });
+              return { projectId: project.id, ...scheme };
+            } catch (error) {
+              return { projectId: project.id, error: 'Failed to fetch permission scheme.' };
+            }
+          }));
+          setPermissionSchemes(schemes);
+          setPermLoading(false);
+
         }
       } catch (error) {
         console.error('Error fetching projects:', error);
@@ -94,11 +129,8 @@ const App = () => {
   return (
     <>
       <Box xcss={headerStyle}>
-      <Heading as="h3" level="h600" xcss={headerStyle} appearance="primary">Projects</Heading>
+        <Heading as="h3" level="h600" xcss={headerStyle} appearance="primary">Projects</Heading>
       </Box>
-      <Text> </Text>
-      <Text> </Text>
-     <Text> </Text>
       <Text> </Text>
       <Box xcss={buttonContainerStyle}>
         <Tooltip content="Export project list to CSV" position="right">
@@ -108,6 +140,47 @@ const App = () => {
       <Box xcss={tableContainerStyle}>
         <DynamicTable head={tableHead} rows={tableRows} isLoading={loading} emptyView="No data to display" />
       </Box>
+
+      {/* Permission Schemes Section as DynamicTable */}
+      <Box xcss={headerStyle}>
+        <Heading as="h4" level="h500" appearance="primary">Project Permission Schemes</Heading>
+      </Box>
+      <Box xcss={buttonContainerStyle}>
+        <Tooltip content="Export permission schemes to CSV" position="right">
+          <Button appearance="primary" text="Export Permission Schemes to CSV" onClick={handleExportPermissionSchemes}>Export Permission Schemes</Button>
+        </Tooltip>
+      </Box>
+      {permLoading && <Text>Loading permission schemes...</Text>}
+      {!permLoading && permissionSchemes.length > 0 && (
+        <DynamicTable
+          head={{
+            cells: [
+              { key: 'projectId', content: 'Project ID' },
+              { key: 'projectKey', content: 'Project Key' },
+              { key: 'projectName', content: 'Project Name' },
+              { key: 'name', content: 'Name' },
+              { key: 'description', content: 'Description' },
+              { key: 'schemeId', content: 'Scheme ID' }
+            ]
+          }}
+          rows={permissionSchemes.map(scheme => {
+            const project = tableData.find(p => p.id === scheme.projectId);
+            return {
+              key: scheme.projectId,
+              cells: [
+                { key: 'projectId', content: scheme.projectId },
+                { key: 'projectKey', content: project ? project.key : '' },
+                { key: 'projectName', content: project ? project.name : '' },
+                { key: 'name', content: scheme.error ? <Text color="red">{scheme.error}</Text> : scheme.name },
+                { key: 'description', content: scheme.error ? '' : scheme.description },
+                { key: 'schemeId', content: scheme.error ? '' : scheme.id }
+              ]
+            };
+          })}
+          isLoading={permLoading}
+          emptyView="No permission schemes to display"
+        />
+      )}
     </>
   );
 };
