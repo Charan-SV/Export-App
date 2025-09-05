@@ -12,8 +12,6 @@ const headerStyle = xcss({
 });
 
 const buttonContainerStyle = xcss({
-  display: 'flex',
-  justifyContent: 'flex-end',
   marginBottom: 'space.300',
 });
 
@@ -36,6 +34,10 @@ const App = () => {
   // Workflows for each workflow scheme (map schemeId to workflow names)
   const [schemeWorkflows, setSchemeWorkflows] = useState({});
   const [schemeWorkflowsLoading, setSchemeWorkflowsLoading] = useState(false);
+
+  // Issue Type Screen Schemes (from new resolver)
+  const [screenSchemes, setScreenSchemes] = useState([]);
+  const [screenSchemesLoading, setScreenSchemesLoading] = useState(false);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -121,6 +123,18 @@ const App = () => {
     };
 
     fetchProjects();
+  }, []);
+
+  // Fetch all project issue type screen schemes on mount
+  useEffect(() => {
+    setScreenSchemesLoading(true);
+    invoke('getAllProjectIssueTypeScreenSchemes').then((data) => {
+      setScreenSchemes(data);
+      setScreenSchemesLoading(false);
+    }).catch((err) => {
+      setScreenSchemes([]);
+      setScreenSchemesLoading(false);
+    });
   }, []);
 
   const handleExportClick = () => {
@@ -212,7 +226,7 @@ const App = () => {
   }));
 
   return (
-    <React.Fragment>
+  <React.Fragment>
       <Box xcss={headerStyle}>
         <Heading as="h3" level="h600" xcss={headerStyle} appearance="primary">Projects</Heading>
       </Box>
@@ -344,9 +358,293 @@ const App = () => {
           emptyView="No workflow schemes to display"
         />
       )}
+
+      {/* Project Issue Type Screen Schemes (Screen Scheme IDs) Section as DynamicTable */}
+      <Box xcss={headerStyle}>
+        <Heading as="h4" level="h500" appearance="primary">Project Issue Type Screen Schemes</Heading>
+      </Box>
+      {screenSchemesLoading && <Text>Loading issue type screen schemes...</Text>}
+      {!screenSchemesLoading && screenSchemes.length > 0 && (
+        <DynamicTable
+          head={{
+            cells: [
+              { key: 'projectId', content: 'Project ID' },
+              { key: 'projectKey', content: 'Project Key' },
+              { key: 'issueTypeScreenSchemeId', content: 'Issue Type Screen Scheme ID' },
+              { key: 'issueTypeScreenSchemeName', content: 'Issue Type Screen Scheme Name' },
+              { key: 'screenSchemeId', content: 'Screen Scheme ID' },
+              { key: 'screenSchemeName', content: 'Screen Scheme Name' },
+              { key: 'error', content: 'Error' }
+            ]
+          }}
+          rows={screenSchemes.map(scheme => ({
+            key: scheme.projectId,
+            cells: [
+              { key: 'projectId', content: scheme.projectId },
+              { key: 'projectKey', content: scheme.projectKey },
+              { key: 'issueTypeScreenSchemeId', content: scheme.issueTypeScreenSchemeId || '' },
+              { key: 'issueTypeScreenSchemeName', content: scheme.issueTypeScreenSchemeName || '' },
+              { key: 'screenSchemeId', content: scheme.screenSchemeId || '' },
+              { key: 'screenSchemeName', content: scheme.screenSchemeName || '' },
+              { key: 'error', content: scheme.error ? <Text color="red">{scheme.error}</Text> : '' }
+            ]
+          }))}
+          isLoading={screenSchemesLoading}
+          emptyView="No issue type screen schemes to display"
+        />
+      )}
+
+      {/* All Screen Schemes and their Screens Section as DynamicTable */}
+      <Box xcss={headerStyle}>
+        <Heading as="h4" level="h500" appearance="primary">All Screen Schemes and Screens</Heading>
+      </Box>
+      <ScreenSchemesTable />
+
+      {/* Combined Project Screen Scheme Details Section as DynamicTable */}
+      <Box xcss={headerStyle}>
+        <Heading as="h4" level="h500" appearance="primary">Project Screen Scheme Details</Heading>
+      </Box>
+      <ProjectScreenSchemeTable />
     </React.Fragment>
   );
 };
+
+function ScreenSchemesTable() {
+  const [screenSchemes, setScreenSchemes] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    invoke('getAllScreenSchemesWithScreens').then((data) => {
+      setScreenSchemes(data);
+      setLoading(false);
+    }).catch(() => {
+      setScreenSchemes([]);
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <Box xcss={tableContainerStyle}>
+      <DynamicTable
+        head={{
+          cells: [
+            { key: 'id', content: 'Screen Scheme ID' },
+            { key: 'name', content: 'Screen Scheme Name' },
+            { key: 'description', content: 'Description' },
+            { key: 'defaultScreenId', content: 'Default Screen ID' },
+            { key: 'editScreenId', content: 'Edit Screen ID' },
+            { key: 'createScreenId', content: 'Create Screen ID' },
+            { key: 'viewScreenId', content: 'View Screen ID' }
+          ]
+        }}
+        rows={screenSchemes.map(scheme => ({
+          key: scheme.id,
+          cells: [
+            { key: 'id', content: scheme.id },
+            { key: 'name', content: scheme.name },
+            { key: 'description', content: scheme.description },
+            { key: 'defaultScreenId', content: scheme.defaultScreenId },
+            { key: 'editScreenId', content: scheme.editScreenId },
+            { key: 'createScreenId', content: scheme.createScreenId },
+            { key: 'viewScreenId', content: scheme.viewScreenId }
+          ]
+        }))}
+        isLoading={loading}
+        emptyView="No screen schemes to display"
+      />
+    </Box>
+  );
+}
+
+function ProjectScreenSchemeTable() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalFields, setModalFields] = useState([]);
+  const [modalScreenId, setModalScreenId] = useState('');
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalScreenIds, setModalScreenIds] = useState({});
+  const [modalFieldsByScreen, setModalFieldsByScreen] = useState({});
+
+  useEffect(() => {
+    setLoading(true);
+    invoke('getProjectScreenSchemeDetails').then((data) => {
+      setRows(data);
+      setLoading(false);
+    }).catch(() => {
+      setRows([]);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleViewFields = async (row) => {
+    setModalScreenId(row.defaultScreenId);
+    setModalScreenIds({
+      default: row.defaultScreenId,
+      edit: row.editScreenId,
+      create: row.createScreenId,
+      view: row.viewScreenId
+    });
+    setModalLoading(true);
+    setModalOpen(true);
+    const ids = [
+      { type: 'Default', id: row.defaultScreenId },
+      { type: 'Edit', id: row.editScreenId },
+      { type: 'Create', id: row.createScreenId },
+      { type: 'View', id: row.viewScreenId }
+    ];
+    const uniqueIds = Array.from(new Set(ids.map(i => i.id))).filter(Boolean);
+    const fieldsByScreen = {};
+    for (const screenId of uniqueIds) {
+      try {
+        let fields = await invoke('getScreenAvailableFields', { screenId });
+        if (!Array.isArray(fields) && fields && fields.values) {
+          fields = fields.values;
+        }
+        fieldsByScreen[String(screenId)] = Array.isArray(fields) ? fields : [];
+      } catch {
+        fieldsByScreen[String(screenId)] = [];
+      }
+    }
+    setModalFieldsByScreen(fieldsByScreen);
+    setModalLoading(false);
+  };
+
+  return (
+    <Box xcss={tableContainerStyle}>
+      <DynamicTable
+        head={{
+          cells: [
+            { key: 'projectId', content: 'Project ID' },
+            { key: 'projectKey', content: 'Project Key' },
+            { key: 'issueTypeScreenSchemeId', content: 'Issue Type Screen Scheme ID' },
+            { key: 'issueTypeScreenSchemeName', content: 'Issue Type Screen Scheme Name' },
+            { key: 'screenSchemeId', content: 'Screen Scheme ID' },
+            { key: 'screenSchemeName', content: 'Screen Scheme Name' },
+            { key: 'defaultScreenId', content: 'Default Screen ID' },
+            { key: 'editScreenId', content: 'Edit Screen ID' },
+            { key: 'createScreenId', content: 'Create Screen ID' },
+            { key: 'viewScreenId', content: 'View Screen ID' },
+            { key: 'view', content: 'View Fields' },
+            { key: 'error', content: 'Error' }
+          ]
+        }}
+        rows={rows.map(row => ({
+          key: row.projectId,
+          cells: [
+            { key: 'projectId', content: row.projectId },
+            { key: 'projectKey', content: row.projectKey },
+            { key: 'issueTypeScreenSchemeId', content: row.issueTypeScreenSchemeId },
+            { key: 'issueTypeScreenSchemeName', content: row.issueTypeScreenSchemeName },
+            { key: 'screenSchemeId', content: row.screenSchemeId },
+            { key: 'screenSchemeName', content: row.screenSchemeName },
+            { key: 'defaultScreenId', content: row.defaultScreenId },
+            { key: 'editScreenId', content: row.editScreenId },
+            { key: 'createScreenId', content: row.createScreenId },
+            { key: 'viewScreenId', content: row.viewScreenId },
+            { key: 'view', content: row.defaultScreenId ? <Button appearance="primary" text="View" onClick={() => handleViewFields(row)} /> : '' },
+            { key: 'error', content: row.error ? <Text color="red">{row.error}</Text> : '' }
+          ]
+        }))}
+        isLoading={loading}
+        emptyView="No project screen scheme details to display"
+      />
+      {modalOpen && (
+        <Box xcss={{
+          padding: 'space.400',
+          borderRadius: 'border.radius.200',
+          backgroundColor: 'color.background.overlay',
+          margin: 'auto',
+          marginTop: 'space.400',
+          width: '80%'
+        }}>
+          <Heading as="h5" level="h400">Fields for Project Screens</Heading>
+          {modalLoading ? <Text>Loading fields...</Text> : (
+            <>
+              {/* Build a table with default screen fields and unique screen fields */}
+              {(() => {
+                // Get default screen fields
+                const defaultId = modalScreenIds.default;
+                const defaultFields = Array.isArray(modalFieldsByScreen[String(defaultId)]) ? modalFieldsByScreen[String(defaultId)] : [];
+                // Find unique screen IDs (edit, create, view) that are different from default
+                const uniqueScreens = Object.entries(modalScreenIds)
+                  .filter(([type, id]) => type !== 'default' && id && id !== defaultId)
+                  .map(([type, id]) => ({ type, id: String(id) }));
+                // For each unique screen, get its fields
+                const uniqueFieldsByScreen = uniqueScreens.map(screen => ({
+                  type: screen.type,
+                  id: screen.id,
+                  fields: Array.isArray(modalFieldsByScreen[screen.id]) ? modalFieldsByScreen[screen.id] : []
+                }));
+                // Build table rows: default fields first
+                let rows = [];
+                // Prepare separate columns for Create, Edit, and View screens
+                const screenTypes = ['create', 'edit', 'view'];
+                const screenFieldsByType = {
+                  create: {},
+                  edit: {},
+                  view: {}
+                };
+                uniqueFieldsByScreen.forEach(screen => {
+                  if (screenTypes.includes(screen.type)) {
+                    screen.fields.forEach(field => {
+                      screenFieldsByType[screen.type][field.id] = field.name;
+                    });
+                  }
+                });
+
+                // Collect all field IDs from all screens
+                const allFieldIds = new Set([
+                  ...defaultFields.map(f => f.id),
+                  ...Object.values(screenFieldsByType).flatMap(fields => Object.keys(fields))
+                ]);
+
+                // Build rows for each field
+                rows = Array.from(allFieldIds).map(fieldId => {
+                  const defaultField = defaultFields.find(f => f.id === fieldId);
+                  const createName = screenFieldsByType.create[fieldId] || '';
+                  const editName = screenFieldsByType.edit[fieldId] || '';
+                  const viewName = screenFieldsByType.view[fieldId] || '';
+                  return {
+                    key: fieldId,
+                    cells: [
+                      { key: 'defaultFieldId', content: defaultField ? defaultField.id : '' },
+                      { key: 'defaultFieldName', content: defaultField ? defaultField.name : '' },
+                      { key: 'createFieldName', content: createName },
+                      { key: 'editFieldName', content: editName },
+                      { key: 'viewFieldName', content: viewName }
+                    ]
+                  };
+                });
+                return (
+                  <>
+                    <Heading size="medium">Project Screen Scheme Details</Heading>
+                    <DynamicTable
+                      head={{
+                        cells: [
+                          { key: 'defaultFieldId', content: 'Field ID for Default' },
+                          { key: 'defaultFieldName', content: 'Field Name for Default' },
+                          { key: 'createFieldName', content: 'Create Screen Field Name' },
+                          { key: 'editFieldName', content: 'Edit Screen Field Name' },
+                          { key: 'viewFieldName', content: 'View Screen Field Name' }
+                        ]
+                      }}
+                      rows={rows}
+                      isLoading={false}
+                      emptyView="No fields found"
+                    />
+                  </>
+                );
+              })()}
+              <Button appearance="default" text="Close" onClick={() => setModalOpen(false)} />
+            </>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 ForgeReconciler.render(
   <React.StrictMode>
