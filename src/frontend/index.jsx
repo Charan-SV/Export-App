@@ -359,46 +359,7 @@ const App = () => {
         />
       )}
 
-      {/* Project Issue Type Screen Schemes (Screen Scheme IDs) Section as DynamicTable */}
-      <Box xcss={headerStyle}>
-        <Heading as="h4" level="h500" appearance="primary">Project Issue Type Screen Schemes</Heading>
-      </Box>
-      {screenSchemesLoading && <Text>Loading issue type screen schemes...</Text>}
-      {!screenSchemesLoading && screenSchemes.length > 0 && (
-        <DynamicTable
-          head={{
-            cells: [
-              { key: 'projectId', content: 'Project ID' },
-              { key: 'projectKey', content: 'Project Key' },
-              { key: 'issueTypeScreenSchemeId', content: 'Issue Type Screen Scheme ID' },
-              { key: 'issueTypeScreenSchemeName', content: 'Issue Type Screen Scheme Name' },
-              { key: 'screenSchemeId', content: 'Screen Scheme ID' },
-              { key: 'screenSchemeName', content: 'Screen Scheme Name' },
-              { key: 'error', content: 'Error' }
-            ]
-          }}
-          rows={screenSchemes.map(scheme => ({
-            key: scheme.projectId,
-            cells: [
-              { key: 'projectId', content: scheme.projectId },
-              { key: 'projectKey', content: scheme.projectKey },
-              { key: 'issueTypeScreenSchemeId', content: scheme.issueTypeScreenSchemeId || '' },
-              { key: 'issueTypeScreenSchemeName', content: scheme.issueTypeScreenSchemeName || '' },
-              { key: 'screenSchemeId', content: scheme.screenSchemeId || '' },
-              { key: 'screenSchemeName', content: scheme.screenSchemeName || '' },
-              { key: 'error', content: scheme.error ? <Text color="red">{scheme.error}</Text> : '' }
-            ]
-          }))}
-          isLoading={screenSchemesLoading}
-          emptyView="No issue type screen schemes to display"
-        />
-      )}
 
-      {/* All Screen Schemes and their Screens Section as DynamicTable */}
-      <Box xcss={headerStyle}>
-        <Heading as="h4" level="h500" appearance="primary">All Screen Schemes and Screens</Heading>
-      </Box>
-      <ScreenSchemesTable />
 
       {/* Combined Project Screen Scheme Details Section as DynamicTable */}
       <Box xcss={headerStyle}>
