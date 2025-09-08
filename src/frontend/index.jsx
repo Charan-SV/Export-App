@@ -39,6 +39,8 @@ const App = () => {
   const [screenSchemes, setScreenSchemes] = useState([]);
   const [screenSchemesLoading, setScreenSchemesLoading] = useState(false);
 
+  const [projectScreenRows, setProjectScreenRows] = useState([]);
+
   useEffect(() => {
     const fetchProjects = async () => {
       try {
@@ -134,6 +136,14 @@ const App = () => {
     }).catch((err) => {
       setScreenSchemes([]);
       setScreenSchemesLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    invoke('getProjectScreenSchemeDetails').then((data) => {
+      setProjectScreenRows(data);
+    }).catch(() => {
+      setProjectScreenRows([]);
     });
   }, []);
 
@@ -359,13 +369,12 @@ const App = () => {
         />
       )}
 
-
-
       {/* Combined Project Screen Scheme Details Section as DynamicTable */}
       <Box xcss={headerStyle}>
         <Heading as="h4" level="h500" appearance="primary">Project Screen Scheme Details</Heading>
+        <ExportProjectInfoButton rows={projectScreenRows} />
       </Box>
-      <ProjectScreenSchemeTable />
+      <ProjectScreenSchemeTable rows={projectScreenRows} />
     </React.Fragment>
   );
 };
@@ -418,8 +427,7 @@ function ScreenSchemesTable() {
   );
 }
 
-function ProjectScreenSchemeTable() {
-  const [rows, setRows] = useState([]);
+function ProjectScreenSchemeTable({ rows }) {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalFields, setModalFields] = useState([]);
@@ -427,17 +435,7 @@ function ProjectScreenSchemeTable() {
   const [modalLoading, setModalLoading] = useState(false);
   const [modalScreenIds, setModalScreenIds] = useState({});
   const [modalFieldsByScreen, setModalFieldsByScreen] = useState({});
-
-  useEffect(() => {
-    setLoading(true);
-    invoke('getProjectScreenSchemeDetails').then((data) => {
-      setRows(data);
-      setLoading(false);
-    }).catch(() => {
-      setRows([]);
-      setLoading(false);
-    });
-  }, []);
+  // Remove duplicate fetch. Use rows prop directly.
 
   const handleViewFields = async (row) => {
     setModalScreenId(row.defaultScreenId);
@@ -472,6 +470,66 @@ function ProjectScreenSchemeTable() {
     setModalLoading(false);
   };
 
+  const handleExportFields = () => {
+    const fieldHeaders = [
+      'Field ID for Default',
+      'Field Name for Default',
+      'Create Screen Field Name',
+      'Edit Screen Field Name',
+      'View Screen Field Name'
+    ];
+    const csvRows = [fieldHeaders.join(',')];
+    rows.forEach(row => {
+      csvRows.push(row.cells.map(cell => `"${cell.content}"`).join(','));
+    });
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'project_screen_fields.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportAll = () => {
+    const headers = [
+      'Project ID',
+      'Project Key',
+      'Issue Type Screen Scheme ID',
+      'Issue Type Screen Scheme Name',
+      'Screen Scheme ID',
+      'Screen Scheme Name',
+      'Default Screen ID',
+      'Edit Screen ID',
+      'Create Screen ID',
+      'View Screen ID'
+    ];
+    const csvRows = [headers.join(',')];
+    rows.forEach(row => {
+      csvRows.push([
+        row.projectId || '',
+        row.projectKey || '',
+        row.issueTypeScreenSchemeId || '',
+        row.issueTypeScreenSchemeName || '',
+        row.screenSchemeId || '',
+        row.screenSchemeName || '',
+        row.defaultScreenId || '',
+        row.editScreenId || '',
+        row.createScreenId || '',
+        row.viewScreenId || ''
+      ].map(v => `"${v}"`).join(','));
+    });
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'project_screen_projects.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Box xcss={tableContainerStyle}>
       <DynamicTable
@@ -504,7 +562,7 @@ function ProjectScreenSchemeTable() {
             { key: 'editScreenId', content: row.editScreenId },
             { key: 'createScreenId', content: row.createScreenId },
             { key: 'viewScreenId', content: row.viewScreenId },
-            { key: 'view', content: row.defaultScreenId ? <Button appearance="primary" text="View" onClick={() => handleViewFields(row)} /> : '' },
+            { key: 'view', content: <Button appearance="primary" onClick={() => handleViewFields(row)}>View Fields</Button> },
             { key: 'error', content: row.error ? <Text color="red">{row.error}</Text> : '' }
           ]
         }))}
@@ -538,57 +596,77 @@ function ProjectScreenSchemeTable() {
                   id: screen.id,
                   fields: Array.isArray(modalFieldsByScreen[screen.id]) ? modalFieldsByScreen[screen.id] : []
                 }));
-                // Build table rows: default fields first
-                let rows = [];
                 // Prepare separate columns for Create, Edit, and View screens
                 const screenTypes = ['create', 'edit', 'view'];
-                const screenFieldsByType = {
-                  create: {},
-                  edit: {},
-                  view: {}
-                };
-                uniqueFieldsByScreen.forEach(screen => {
-                  if (screenTypes.includes(screen.type)) {
-                    screen.fields.forEach(field => {
-                      screenFieldsByType[screen.type][field.id] = field.name;
-                    });
-                  }
-                });
-
                 // Collect all field IDs from all screens
                 const allFieldIds = new Set([
                   ...defaultFields.map(f => f.id),
-                  ...Object.values(screenFieldsByType).flatMap(fields => Object.keys(fields))
+                  ...uniqueFieldsByScreen.flatMap(screen => screen.fields.map(f => f.id))
                 ]);
 
-                // Build rows for each field
+                // Build rows for each field, always show ID if present in that screen
                 rows = Array.from(allFieldIds).map(fieldId => {
                   const defaultField = defaultFields.find(f => f.id === fieldId);
-                  const createName = screenFieldsByType.create[fieldId] || '';
-                  const editName = screenFieldsByType.edit[fieldId] || '';
-                  const viewName = screenFieldsByType.view[fieldId] || '';
+                  // For each screen, find the field object (id and name)
+                  const createFieldObj = uniqueFieldsByScreen.find(s => s.type === 'create')?.fields.find(f => f.id === fieldId);
+                  const editFieldObj = uniqueFieldsByScreen.find(s => s.type === 'edit')?.fields.find(f => f.id === fieldId);
+                  const viewFieldObj = uniqueFieldsByScreen.find(s => s.type === 'view')?.fields.find(f => f.id === fieldId);
                   return {
                     key: fieldId,
                     cells: [
                       { key: 'defaultFieldId', content: defaultField ? defaultField.id : '' },
                       { key: 'defaultFieldName', content: defaultField ? defaultField.name : '' },
-                      { key: 'createFieldName', content: createName },
-                      { key: 'editFieldName', content: editName },
-                      { key: 'viewFieldName', content: viewName }
+                      { key: 'createFieldId', content: createFieldObj ? createFieldObj.id : '' },
+                      { key: 'createFieldName', content: createFieldObj ? createFieldObj.name : '' },
+                      { key: 'editFieldId', content: editFieldObj ? editFieldObj.id : '' },
+                      { key: 'editFieldName', content: editFieldObj ? editFieldObj.name : '' },
+                      { key: 'viewFieldId', content: viewFieldObj ? viewFieldObj.id : '' },
+                      { key: 'viewFieldName', content: viewFieldObj ? viewFieldObj.name : '' }
                     ]
                   };
                 });
+                // Export to CSV handler
+                const handleExport = () => {
+                  const fieldHeaders = [
+                    'Field ID for Default',
+                    'Field Name for Default',
+                    'Field ID for Create',
+                    'Field Name for Create',
+                    'Field ID for Edit',
+                    'Field Name for Edit',
+                    'Field ID for View',
+                    'Field Name for View'
+                  ];
+                  const csvRows = [fieldHeaders.join(',')];
+                  rows.forEach(row => {
+                    // If cells are in the order: defaultId, defaultName, createId, createName, editId, editName, viewId, viewName
+                    csvRows.push(row.cells.map(cell => `"${cell.content}"`).join(','));
+                  });
+                  const csvContent = csvRows.join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'project_screen_fields.csv';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                };
+                // Only show Project Screen Scheme Details heading in main table, not modal
                 return (
                   <>
-                    <Heading size="medium">Project Screen Scheme Details</Heading>
+                    {/* Only show Project Screen Scheme Details heading in main table, not modal */}
+                    <Button appearance="primary" onClick={handleExport}>Export CSV</Button>
                     <DynamicTable
                       head={{
                         cells: [
                           { key: 'defaultFieldId', content: 'Field ID for Default' },
                           { key: 'defaultFieldName', content: 'Field Name for Default' },
-                          { key: 'createFieldName', content: 'Create Screen Field Name' },
-                          { key: 'editFieldName', content: 'Edit Screen Field Name' },
-                          { key: 'viewFieldName', content: 'View Screen Field Name' }
+                          { key: 'createFieldId', content: 'Field ID for Create' },
+                          { key: 'createFieldName', content: 'Field Name for Create' },
+                          { key: 'editFieldId', content: 'Field ID for Edit' },
+                          { key: 'editFieldName', content: 'Field Name for Edit' },
+                          { key: 'viewFieldId', content: 'Field ID for View' },
+                          { key: 'viewFieldName', content: 'Field Name for View' }
                         ]
                       }}
                       rows={rows}
@@ -605,6 +683,47 @@ function ProjectScreenSchemeTable() {
       )}
     </Box>
   );
+}
+
+function ExportProjectInfoButton({ rows }) {
+  const handleExportProjects = () => {
+    const headers = [
+      'Project ID',
+      'Project Key',
+      'Issue Type Screen Scheme ID',
+      'Issue Type Screen Scheme Name',
+      'Screen Scheme ID',
+      'Screen Scheme Name',
+      'Default Screen ID',
+      'Edit Screen ID',
+      'Create Screen ID',
+      'View Screen ID'
+    ];
+    const csvRows = [headers.join(',')];
+    rows.forEach(row => {
+      csvRows.push([
+        row.projectId || '',
+        row.projectKey || '',
+        row.issueTypeScreenSchemeId || '',
+        row.issueTypeScreenSchemeName || '',
+        row.screenSchemeId || '',
+        row.screenSchemeName || '',
+        row.defaultScreenId || '',
+        row.editScreenId || '',
+        row.createScreenId || '',
+        row.viewScreenId || ''
+      ].map(v => `"${v}"`).join(','));
+    });
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'project_screen_projects.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  return <Button appearance="primary" onClick={handleExportProjects}>Export Project Info CSV</Button>;
 }
 
 ForgeReconciler.render(
